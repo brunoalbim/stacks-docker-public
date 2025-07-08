@@ -1,0 +1,68 @@
+#(.*)#(.*)\n
+version: "3.7"
+
+###########
+# ENDEREÇO DO WEBHOOK         = listmk.SITE.com.br
+#
+# NOME DO POSTGRES            = NAMEDBPOSTGRES (listmonk)
+# SENHA DO POSTGRES           = PASSPOSTGRES
+# ENDEREÇO DO POSTGRES        = HOSTPOSTGRES (postgres)
+###########
+#
+# Definição dos Serviços
+services:
+  listmonk:
+    image: listmonk/listmonk:latest
+    hostname: "{{.Service.Name}}.{{.Task.Slot}}"
+    restart: unless-stopped
+    ports:
+      - "9000:9000" 
+    command: [sh, -c, "./listmonk --install --idempotent --yes --config '' && ./listmonk --upgrade --yes --config '' && ./listmonk --config ''"]
+    volumes:
+      - listmonk_data:/listmonk/uploads:rw
+    networks:
+      - network_swarm_public
+    environment:
+      - LISTMONK_app__address=0.0.0.0:9000
+      - LISTMONK_db__user=postgres
+      - LISTMONK_db__password=PASSPOSTGRES
+      - LISTMONK_db__database=NAMEDBPOSTGRES
+      - LISTMONK_db__host=HOSTPOSTGRES
+      - LISTMONK_db__port=5432
+      - LISTMONK_db__ssl_mode=disable
+      - LISTMONK_db__max_open=25
+      - LISTMONK_db__max_idle=25
+      - LISTMONK_db__max_lifetime=300s
+      - TZ=America/Sao_Paulo
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+        - node.role == manager
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1024M
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.listmonk.rule=Host(`listmk.SITE.com.br`)
+        - traefik.http.routers.listmonk.entrypoints=websecure
+        - traefik.http.routers.listmonk.priority=1
+        - traefik.http.routers.listmonk.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.listmonk.service=listmonk
+        - traefik.http.services.listmonk.loadbalancer.server.port=9000
+        - traefik.http.services.listmonk.loadbalancer.passHostHeader=true
+      update_config:
+        parallelism: 1
+        delay: 30s
+        order: start-first
+        failure_action: rollback
+volumes:
+  listmonk_data:
+    external: true
+    name: listmonk_data
+networks:
+  network_swarm_public:
+    name: network_swarm_public
+    external: true
