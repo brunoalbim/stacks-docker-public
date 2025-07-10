@@ -1,0 +1,71 @@
+#(.*)#(.*)\n
+version: "3.7"
+
+###########
+# ENDEREÇO DO PAINEL          = base.SITE.com.br
+# CHAVE DE CRIPTOGRAFIA       = MYENCRYPTKEY
+# CHAVE DE AUTENTICAÇÃO JWT   = MYENCRYPTJWT
+#
+# NOME DO POSTGRES            = NAMEDBPOSTGRES (nocodb)
+# SENHA DO POSTGRES           = PASSPOSTGRES
+# ENDEREÇO DO POSTGRES        = HOSTPOSTGRES (postgres)
+###########
+#
+services:
+  # Define o serviço do NocoDB
+  nocodb:
+    # Define a imagem do NocoDB
+    image: nocodb/nocodb:0.263.0
+    # Define o entrypoint
+    entrypoint: /usr/bin/dumb-init --
+    # Define o command
+    command: /usr/src/appEntry/start.sh
+    # Configura a Network
+    networks:
+      - network_swarm_public
+    # Configura as variáveis de ambiente
+    environment:
+      # Configura o banco de dados
+      - NC_DB=pg://HOSTPOSTGRES:5432?u=postgres&p=PASSPOSTGRES&d=NAMEDBPOSTGRES
+      # Define o endereço do nocodb
+      - NC_PUBLIC_URL=https://base.SITE.com.br
+      # Configura Telemetria
+      - NC_DISABLE_TELE=true
+      # Chave de criptografia de dados
+      - NC_CONNECTION_ENCRYPT_KEY=MYENCRYPTKEY
+      # Chave JWT para gerar tokens de autenticação
+      - NC_AUTH_JWT_SECRET=MYENCRYPTJWT
+    # Configura o deploy
+    deploy:
+      # Configura o modo de deploy
+      mode: replicated
+      # Configura o número de réplicas
+      replicas: 1
+      # Configura o Placement
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1024M
+      # Configura os labels do Traefik
+      labels:
+        # Habilita o Traefil
+        - traefik.enable=true
+        # Configura o endereço do NocoDB
+        - traefik.http.routers.nocodb.rule=Host(`base.SITE.com.br`)
+        # Redireciona para SSL
+        - traefik.http.routers.nocodb.entrypoints=websecure
+        # Configura o certificado SSL
+        - traefik.http.routers.nocodb.tls.certresolver=letsencryptresolver
+        # Configura o serviço do NocoDB
+        - traefik.http.routers.nocodb.service=nocodb
+        # Configura a porta do loadbalancer
+        - traefik.http.services.nocodb.loadbalancer.server.port=8080
+        # Passa o Host Header
+        - traefik.http.services.nocodb.loadbalancer.passHostHeader=true
+networks:
+  network_swarm_public:
+    name: network_swarm_public
+    external: true
